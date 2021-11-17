@@ -1,0 +1,4 @@
+# BERT seems to only accept Tab Separated files (.tsv) only allow tsv files to be in this directory
+*
+!.gitignore
+!.tsv
