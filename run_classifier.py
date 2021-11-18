@@ -19,6 +19,7 @@ from __future__ import division
 from __future__ import print_function
 
 import collections
+import copy
 import csv
 import os
 import modeling
@@ -30,31 +31,28 @@ flags = tf.flags
 
 FLAGS = flags.FLAGS
 
-## Required parameters
-flags.DEFINE_string(
-    "data_dir", None,
-    "The input data dir. Should contain the .tsv files (or other data files) "
-    "for the task.")
+if __name__ == "__main__":
+    ## Required parameters
+    flags.DEFINE_string(
+        "data_dir", None,
+        "The input data dir. Should contain the .tsv files (or other data files) "
+        "for the task.")
 
-flags.DEFINE_string(
-    "bert_config_file", None,
-    "The config json file corresponding to the pre-trained BERT model. "
-    "This specifies the model architecture.")
+    flags.DEFINE_string(
+        "bert_config_file", None,
+        "The config json file corresponding to the pre-trained BERT model. "
+        "This specifies the model architecture.")
 
-flags.DEFINE_string("task_name", None, "The name of the task to train.")
+    flags.DEFINE_string("task_name", None, "The name of the task to train.")
 
-flags.DEFINE_string("vocab_file", None,
-                    "The vocabulary file that the BERT model was trained on.")
+    flags.DEFINE_string("vocab_file", None,
+                        "The vocabulary file that the BERT model was trained on.")
 
-flags.DEFINE_string(
-    "output_dir", None,
-    "The output directory where the model checkpoints will be written.")
+    flags.DEFINE_string(
+        "output_dir", None,
+        "The output directory where the model checkpoints will be written.")
 
 ## Other parameters
-
-flags.DEFINE_string(
-    "init_checkpoint", None,
-    "Initial checkpoint (usually from a pre-trained BERT model).")
 
 flags.DEFINE_bool(
     "do_lower_case", True,
@@ -67,9 +65,19 @@ flags.DEFINE_integer(
     "Sequences longer than this will be truncated, and sequences shorter "
     "than this will be padded.")
 
-flags.DEFINE_bool("do_train", False, "Whether to run training.")
+if __name__ == "__main__":
+    flags.DEFINE_string(
+        "init_checkpoint", None,
+        "Initial checkpoint (usually from a pre-trained BERT model).")
 
-flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
+    flags.DEFINE_bool("do_train", False, "Whether to run training.")
+
+    flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
+
+    flags.DEFINE_float("learning_rate", 5e-5, "The initial learning rate for Adam.")
+
+    flags.DEFINE_float("num_train_epochs", 3.0,
+                       "Total number of training epochs to perform.")
 
 flags.DEFINE_bool(
     "do_predict", False,
@@ -80,11 +88,6 @@ flags.DEFINE_integer("train_batch_size", 8, "Total batch size for training.") # 
 flags.DEFINE_integer("eval_batch_size", 8, "Total batch size for eval.")
 
 flags.DEFINE_integer("predict_batch_size", 8, "Total batch size for predict.")
-
-flags.DEFINE_float("learning_rate", 5e-5, "The initial learning rate for Adam.")
-
-flags.DEFINE_float("num_train_epochs", 3.0,
-                   "Total number of training epochs to perform.")
 
 flags.DEFINE_float(
     "warmup_proportion", 0.1,
@@ -779,6 +782,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
     features.append(feature)
   return features
 
+eval_results = None
 
 def main(_):
   tf.logging.set_verbosity(tf.logging.INFO)
@@ -924,6 +928,8 @@ def main(_):
       for key in sorted(result.keys()):
         tf.logging.info("  %s = %s", key, str(result[key]))
         writer.write("%s = %s\n" % (key, str(result[key])))
+    global eval_results
+    eval_results = copy.deepcopy(result)
 
   if FLAGS.do_predict:
     predict_examples = processor.get_test_examples(FLAGS.data_dir)
@@ -970,6 +976,50 @@ def main(_):
         writer.write(output_line)
         num_written_lines += 1
     assert num_written_lines == num_actual_predict_examples
+
+
+# Functionally the same as main, but allows for rate and epochs to be set by external code
+# Returns the accuracy of the model
+def tuning(rate, epochs):
+    this_dir = os.path.dirname(os.path.abspath(__file__))
+    # Define the required flags
+    flags.DEFINE_string(
+        "data_dir", os.path.join(this_dir, "SentimentalLIAR"),
+        "The input data dir. Should contain the .tsv files (or other data files) "
+        "for the task.", allow_override=True)
+    flags.DEFINE_string(
+        "bert_config_file", os.path.join(os.path.join(this_dir, "bert_base"), 'bert_config.json'),
+        "The config json file corresponding to the pre-trained BERT model. "
+        "This specifies the model architecture.", allow_override=True)
+    flags.DEFINE_string("task_name", "cola", "The name of the task to train.", allow_override=True)
+    flags.DEFINE_string("vocab_file", os.path.join(os.path.join(this_dir, "bert_base"), "vocab.txt"),
+                        "The vocabulary file that the BERT model was trained on.", allow_override=True)
+    flags.DEFINE_string(
+        "output_dir", os.path.join(this_dir, "output"),
+        "The output directory where the model checkpoints will be written.", allow_override=True)
+    # Define the other necessary flags for fine tuning
+    flags.DEFINE_string(
+        "init_checkpoint", os.path.join(os.path.join(this_dir, "bert_base"), "bert_model.ckpt"),
+        "Initial checkpoint (usually from a pre-trained BERT model).", allow_override=True)
+
+    flags.DEFINE_bool("do_train", True, "Whether to run training.", allow_override=True)
+
+    flags.DEFINE_bool("do_eval", True, "Whether to run eval on the dev set.", allow_override=True)
+
+    flags.DEFINE_float("learning_rate", rate, "The initial learning rate for Adam.", allow_override=True)
+
+    flags.DEFINE_float("num_train_epochs", epochs,
+                       "Total number of training epochs to perform.", allow_override=True)
+    flags.mark_flag_as_required("data_dir")
+    flags.mark_flag_as_required("task_name")
+    flags.mark_flag_as_required("vocab_file")
+    flags.mark_flag_as_required("bert_config_file")
+    flags.mark_flag_as_required("output_dir")
+    try:
+        tf.app.run(main)
+    except SystemExit:
+        print("ignoring SystemExit")
+    return eval_results['eval_accuracy']
 
 
 if __name__ == "__main__":

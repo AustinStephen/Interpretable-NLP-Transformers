@@ -1,7 +1,10 @@
 ## Hyperparameter tuning
 ## Austin Stephen
+## Modifications by Collin Jensen
 
-import numpy as np 
+import os
+import numpy as np
+import run_classifier as classifier
 
 ## 25 learning rates to search 
 learning_rate = np.linspace(0.000001,.01,25)
@@ -20,17 +23,15 @@ epocs = two + three + four + five + six + seven + large + very_large
 ## zipping them into configurations 
 configurations = zip(epocs,learning_rate)
 
+# Only write the column names to the file if it doesn't already exist.
+if not os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), "tuning_results.csv")):
+    ## setting col values in file
+    with open("tuning_results.csv", "a") as file:
+        file.write("epocs,learning_rate,accuracy\n")
 
-## setting col values in file
-with open("tunning_results.csv", "a") as file:
-    file.write("epocs,learning_rate,accuracy\n")
-    file.close()
-
-accuracy = 100.00
 for config in configurations:
     ## INSERT Collin script here.
     ## expects accuracy as output
-    ## accuracy = Collin_script.py config[0] config[1]
-    with open("tunning_results.csv", "a") as file: 
+    accuracy = classifier.tuning(config[1], config[0])
+    with open("tuning_results.csv", "a") as file:
         file.write(str(config[0]) + "," + str(config[1]) + "," + str(accuracy)+'\n')
-        file.close()
