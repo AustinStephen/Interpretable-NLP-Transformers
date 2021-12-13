@@ -35,8 +35,12 @@ def find(name, path):
 # make sure to change the input file encoding ( use "iconv -t utf8 <filename> -o <newfilename>" on Linux)
 input_file = find('train1.csv', PATH)
 
-# this should handle the model related information
-config_file = find('bert_config.json', PATH)
+# this should handle the model related information for the untrained model 
+# (this will throw errors if not named model.* for everything other than 'vocab.txt')
+untrained_dir = os.path.join(PATH, 'bert_base')
+
+# this uses the checkpoints saved from the hyper-tuning
+# tuned_dir = os.path.join(PATH, 'output')
 
 
 # read in the .tsv file (I used the same function as Google's BERT code)
@@ -62,10 +66,13 @@ def set_seed(seed: int):
 # calls the seed function (change if you want)
 set_seed(1)
 
+
+### untrained model ###
+
 # config object to use local pre-trained BERT model
 # this will output the attentions, but can also output hidden states (change value to true)
 config = BertConfig.from_pretrained(
-    config_file, output_attentions=True, output_hidden_states=False, local_files_only=True)
+    untrained_dir, output_attentions=True, output_hidden_states=False, local_files_only=True)
 model = BertModel(config)
 
 tokenizer = BertTokenizer.from_pretrained(
@@ -81,12 +88,29 @@ for (i, l) in enumerate(lines):
 outputs = model(tokens)
 
 
-# writing out the tokens (not super helpful)
-# with open('out1.txt', 'w') as f:
-#     with redirect_stdout(f):
-#         print(tokens)
+### tuned model ###
+
+# same settings as above
+# config_tuned = BertConfig.from_pretrained(
+#     tuned_dir, output_attentions=True, output_hidden_states=False, local_files_only=True)
+# model_tuned = BertModel(config_tuned)
+
+
+# # will need to change this to accept a file
+# for (i, l) in enumerate(lines):
+#     if i == 0:
+#         continue
+#     tokens_tuned = tokenizer.encode(l, return_tensors="pt")
+
+# outputs_tuned = model_tuned(tokens_tuned)
+
 
 # writing out the attentions to 'attentions-output.txt'
-with open('attentions-output.txt', 'w') as f:
+with open('attentions-output-untrained.txt', 'w') as f:
     with redirect_stdout(f):
         print(outputs)
+
+# writing out the attentions to 'attentions-output.txt'
+# with open('attentions-output-tuned.txt', 'w') as f:
+#     with redirect_stdout(f):
+#         print(outputs_tuned)
